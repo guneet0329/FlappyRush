@@ -16,9 +16,9 @@ A competitive twist on the classic Flappy Bird formula — built for Android.
 ## Development phases
 | Phase | Focus | Status |
 |-------|-------|--------|
-| 1 | Core game mechanics | 🔄 In progress |
-| 2 | Visual redesign & game feel | ⏳ Upcoming |
-| 3 | Leaderboard & accounts | ⏳ Upcoming |
+| 1 | Core game mechanics | ✅ Done |
+| 2 | Visual redesign & game feel | ✅ Done |
+| 3 | Leaderboard & accounts | 🔄 In progress |
 | 4 | Competitive multiplayer | ⏳ Upcoming |
 | 5 | Polish & launch | ⏳ Upcoming |
 
