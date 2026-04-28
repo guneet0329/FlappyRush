@@ -1,29 +1,100 @@
 package com.flappyrush.game.competitive
 
+import com.flappyrush.auth.AuthManager
 import com.flappyrush.data.models.Match
-import com.flappyrush.data.models.MatchMode
+import com.flappyrush.data.models.MatchStatus
 import com.flappyrush.data.repository.MatchRepository
+import com.google.firebase.database.ValueEventListener
 
-// Phase 4 — orchestrates matchmaking and live match state
-class MatchManager(private val repository: MatchRepository) {
+class MatchManager {
+
+    private val auth        = AuthManager()
+    private val matchRepo   = MatchRepository()
 
     var currentMatch: Match? = null
-    var onMatchFound: ((Match) -> Unit)? = null
-    var onOpponentScoreUpdate: ((Int) -> Unit)? = null
+    var opponentUid: String = ""
+    var isPlayer1: Boolean = false
 
-    fun findMatch(playerUid: String) {
-        // TODO Phase 4:
-        // 1. Write to Firebase "matchmaking_queue" with playerUid + timestamp
-        // 2. Listen for another player to join
-        // 3. First player creates Match with shared seed
-        // 4. Both players receive the match and start simultaneously
-    }
+    var onMatchFound: ((matchId: String, seed: Long) -> Unit)? = null
+    var onOpponentPosition: ((y: Float, score: Int) -> Unit)? = null
+    var onMatchFinished: ((winnerId: String) -> Unit)? = null
+    var onSearchTimeout: (() -> Unit)? = null
 
-    fun reportScore(matchId: String, score: Int, playerUid: String) {
-        // TODO Phase 4: push score update to Firebase
+    private var matchListener: ValueEventListener? = null
+    private var positionListener: ValueEventListener? = null
+    private var searchTimeoutRunnable: Runnable? = null
+
+    private val uid get() = auth.uid ?: ""
+
+    // --- Matchmaking ---
+
+    fun findMatch() {
+        matchRepo.joinQueue(uid) { opponentUid, matchId, seed ->
+            this.opponentUid = opponentUid
+            this.isPlayer1 = false  // we joined, opponent created
+            listenToMatch(matchId)
+            onMatchFound?.invoke(matchId, seed)
+        }
     }
 
     fun cancelSearch() {
-        // TODO Phase 4: remove from queue
+        matchRepo.leaveQueue(uid)
+        searchTimeoutRunnable = null
+    }
+
+    // --- In-match ---
+
+    fun reportScore(matchId: String, score: Int, y: Float) {
+        matchRepo.pushPosition(matchId, uid, y, score)
+
+        val myAliveKey  = if (isPlayer1) "player1Alive" else "player2Alive"
+        val myScoreKey  = if (isPlayer1) "player1Score" else "player2Score"
+        matchRepo.updateMatch(matchId, mapOf(myScoreKey to score))
+    }
+
+    fun reportDeath(matchId: String, finalScore: Int) {
+        val myAliveKey = if (isPlayer1) "player1Alive" else "player2Alive"
+        val myScoreKey = if (isPlayer1) "player1Score" else "player2Score"
+        matchRepo.updateMatch(matchId, mapOf(
+            myAliveKey to false,
+            myScoreKey to finalScore
+        ))
+        checkMatchEnd(matchId)
+    }
+
+    private fun checkMatchEnd(matchId: String) {
+        val match = currentMatch ?: return
+        val bothDead = !match.player1Alive && !match.player2Alive
+        if (bothDead) {
+            val winnerId = match.getWinnerUid()
+            matchRepo.updateMatch(matchId, mapOf(
+                "status"    to MatchStatus.FINISHED.name,
+                "winnerId"  to winnerId,
+                "endedAt"   to System.currentTimeMillis()
+            ))
+        }
+    }
+
+    fun listenToOpponent(matchId: String) {
+        positionListener = matchRepo.listenToOpponentPosition(matchId, opponentUid) { y, score ->
+            onOpponentPosition?.invoke(y, score)
+        }
+    }
+
+    private fun listenToMatch(matchId: String) {
+        matchListener = matchRepo.listenToMatch(matchId) { match ->
+            match ?: return@listenToMatch
+            currentMatch = match
+            if (match.isFinished()) {
+                onMatchFinished?.invoke(match.winnerId)
+            }
+        }
+    }
+
+    fun cleanup(matchId: String) {
+        matchListener?.let { matchRepo.removeMatchListener(matchId, it) }
+        matchListener = null
+        positionListener = null
+        currentMatch = null
     }
 }
