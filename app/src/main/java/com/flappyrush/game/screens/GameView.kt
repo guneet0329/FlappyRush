@@ -27,9 +27,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         engine = GameEngine(context, width, height)
-        hud = HUD(width)
+        hud = HUD(width, height)
         scoreOverlay = ScoreOverlay(context, width, height)
 
+        engine.onScore = { hud.onScore(engine.pipeManager.score) }
         engine.onGameOver = { score ->
             scoreOverlay.saveBestScore(score)
             onGameOver?.invoke(score)
@@ -37,6 +38,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
         gameLoop = GameLoop { deltaSeconds ->
             engine.update(deltaSeconds)
+            hud.update(deltaSeconds)
             drawFrame()
         }
         gameLoop.startLoop()
@@ -52,21 +54,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!::engine.isInitialized) return false
 
-        when (engine.state) {
-            GameEngine.GameState.MENU -> {
-                engine.startGame()
-                return true
-            }
-            GameEngine.GameState.PLAYING -> {
-                engine.input.onTouch(event)
-                return true
-            }
-            GameEngine.GameState.DEAD -> {
-                if (event.action == MotionEvent.ACTION_DOWN) {
-                    engine.startGame()
-                    return true
+        if (event.action == MotionEvent.ACTION_DOWN) {
+            when (engine.state) {
+                GameEngine.GameState.MENU -> engine.startGame()
+                GameEngine.GameState.PLAYING -> {
+                    engine.input.onTouch(event)
+                    engine.onTap()
                 }
+                GameEngine.GameState.DEAD -> engine.startGame()
             }
+            return true
         }
         return super.onTouchEvent(event)
     }
@@ -78,13 +75,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             engine.draw(canvas)
 
             when (engine.state) {
-                GameEngine.GameState.MENU -> {
-                    hud.drawTapToStart(canvas, height)
-                }
-                GameEngine.GameState.PLAYING -> {
-                    hud.draw(canvas, engine.pipeManager.score)
-                }
-                GameEngine.GameState.DEAD -> {
+                GameEngine.GameState.MENU    -> hud.drawMenu(canvas)
+                GameEngine.GameState.PLAYING -> hud.draw(canvas, engine.pipeManager.score)
+                GameEngine.GameState.DEAD    -> {
                     hud.draw(canvas, engine.pipeManager.score)
                     scoreOverlay.draw(canvas, engine.pipeManager.score)
                 }
