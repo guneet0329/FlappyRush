@@ -3,20 +3,37 @@ package com.flappyrush.game.competitive
 import com.flappyrush.data.models.Player
 import com.flappyrush.data.repository.PlayerRepository
 
-// Phase 3 — global and friends leaderboard
 class Leaderboard(private val repository: PlayerRepository) {
 
-    suspend fun getGlobalTop(limit: Int = 100): List<Player> {
-        return repository.getLeaderboard(limit)
+    enum class Tab { GLOBAL, FRIENDS }
+
+    fun getGlobal(limit: Int = 100, onResult: (List<LeaderboardEntry>) -> Unit) {
+        repository.getLeaderboard(limit) { players ->
+            onResult(players.mapIndexed { i, p ->
+                LeaderboardEntry(rank = i + 1, player = p, isCurrentUser = false)
+            })
+        }
     }
 
-    suspend fun getPlayerRank(uid: String): Int {
-        // TODO Phase 3: query count of players with higher bestScore
-        return -1
+    fun getFriends(currentUid: String, friendUids: List<String>, onResult: (List<LeaderboardEntry>) -> Unit) {
+        val uidsToFetch = (friendUids + currentUid).distinct()
+        repository.getPlayersByUids(uidsToFetch) { players ->
+            onResult(players.mapIndexed { i, p ->
+                LeaderboardEntry(rank = i + 1, player = p, isCurrentUser = p.uid == currentUid)
+            })
+        }
     }
 
-    suspend fun getFriendsLeaderboard(friendUids: List<String>): List<Player> {
-        // TODO Phase 3: filter leaderboard to friends
-        return emptyList()
+    fun getPlayerRank(uid: String, onResult: (Int) -> Unit) {
+        repository.getLeaderboard(1000) { players ->
+            val rank = players.indexOfFirst { it.uid == uid } + 1
+            onResult(if (rank == 0) -1 else rank)
+        }
     }
+
+    data class LeaderboardEntry(
+        val rank: Int,
+        val player: Player,
+        val isCurrentUser: Boolean
+    )
 }
