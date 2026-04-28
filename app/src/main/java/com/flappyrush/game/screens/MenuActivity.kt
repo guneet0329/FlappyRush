@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.flappyrush.auth.AuthManager
 import com.flappyrush.data.repository.PlayerRepository
 import com.flappyrush.game.screens.auth.LoginActivity
+import com.flappyrush.game.screens.match.MatchmakingActivity
 import com.flappyrush.game.screens.profile.ProfileActivity
 
 class MenuActivity : AppCompatActivity() {
@@ -17,14 +18,11 @@ class MenuActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Redirect to login if not authenticated
         if (!auth.isLoggedIn) {
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
             return
         }
-
         buildUI()
     }
 
@@ -57,7 +55,6 @@ class MenuActivity : AppCompatActivity() {
             setTextColor(android.graphics.Color.parseColor("#FF6B35"))
         }
 
-        // Load username
         val welcomeText = TextView(this).apply {
             text = "Welcome back!"
             textSize = 16f
@@ -66,29 +63,31 @@ class MenuActivity : AppCompatActivity() {
         }
         auth.uid?.let { uid ->
             playerRepo.listenToPlayer(uid) { player ->
-                runOnUiThread {
-                    welcomeText.text = "Welcome, ${player?.username ?: "Player"}!"
-                }
+                runOnUiThread { welcomeText.text = "Welcome, ${player?.username ?: "Player"}!" }
             }
         }
 
-        val playBtn = Button(this).apply {
-            text = "▶  PLAY"
-            textSize = 22f
+        val soloBtn = Button(this).apply {
+            text = "▶  SOLO PLAY"
+            textSize = 20f
             setBackgroundColor(android.graphics.Color.parseColor("#FF6B35"))
             setTextColor(android.graphics.Color.WHITE)
-            setOnClickListener {
-                startActivity(Intent(this@MenuActivity, GameActivity::class.java))
-            }
+            setOnClickListener { startActivity(Intent(this@MenuActivity, GameActivity::class.java)) }
+        }
+
+        val vsBtn = Button(this).apply {
+            text = "⚔  1v1 MATCH"
+            textSize = 20f
+            setBackgroundColor(android.graphics.Color.parseColor("#7B1FA2"))
+            setTextColor(android.graphics.Color.WHITE)
+            setOnClickListener { startActivity(Intent(this@MenuActivity, MatchmakingActivity::class.java)) }
         }
 
         val profileBtn = Button(this).apply {
             text = "👤  PROFILE & LEADERBOARD"
             setBackgroundColor(android.graphics.Color.parseColor("#16213E"))
             setTextColor(android.graphics.Color.WHITE)
-            setOnClickListener {
-                startActivity(Intent(this@MenuActivity, ProfileActivity::class.java))
-            }
+            setOnClickListener { startActivity(Intent(this@MenuActivity, ProfileActivity::class.java)) }
         }
 
         val logoutBtn = Button(this).apply {
@@ -105,7 +104,8 @@ class MenuActivity : AppCompatActivity() {
         root.addView(title, params)
         root.addView(subtitle, params)
         root.addView(welcomeText, params)
-        root.addView(playBtn, params)
+        root.addView(soloBtn, params)
+        root.addView(vsBtn, params)
         root.addView(profileBtn, params)
         root.addView(logoutBtn, params)
 
