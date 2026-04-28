@@ -2,34 +2,37 @@ package com.flappyrush.game.engine
 
 import android.content.Context
 import android.graphics.Canvas
+import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.os.Build
+import com.flappyrush.auth.AuthManager
+import com.flappyrush.data.repository.PlayerRepository
 import com.flappyrush.game.effects.ParticleSystem
 import com.flappyrush.game.effects.ScreenShake
 import com.flappyrush.game.objects.*
 import com.flappyrush.game.theme.BirdSkin
 import com.flappyrush.game.theme.PipeTheme
-import com.flappyrush.game.ui.HUD
 import com.flappyrush.utils.SoundManager
 
 class GameEngine(private val context: Context, val screenWidth: Int, val screenHeight: Int) {
 
-    val bird = Bird(screenWidth, screenHeight)
+    val bird        = Bird(screenWidth, screenHeight)
     val pipeManager = PipeManager(screenWidth, screenHeight)
-    val background = Background(screenWidth, screenHeight)
-    val physics = PhysicsEngine()
-    val input = InputHandler(bird)
-    val sound = SoundManager(context)
-    val particles = ParticleSystem()
-    val shake = ScreenShake()
+    val background  = Background(screenWidth, screenHeight)
+    val physics     = PhysicsEngine()
+    val input       = InputHandler(bird)
+    val sound       = SoundManager(context)
+    val particles   = ParticleSystem()
+    val shake       = ScreenShake()
+
+    private val auth       = AuthManager()
+    private val playerRepo = PlayerRepository()
 
     var state: GameState = GameState.MENU
     var onGameOver: ((score: Int) -> Unit)? = null
     var onScore: (() -> Unit)? = null
 
-    // Active skin/theme (Phase 5 will load from player prefs)
     var activeSkin: BirdSkin = BirdSkin.GOLDEN
     var activeTheme: PipeTheme = PipeTheme.CLASSIC
 
@@ -47,10 +50,7 @@ class GameEngine(private val context: Context, val screenWidth: Int, val screenH
     init {
         pipeManager.onScorePoint = {
             sound.play(SoundManager.SoundEvent.SCORE)
-            particles.emitScore(
-                screenWidth * 0.5f,
-                screenHeight * 0.15f
-            )
+            particles.emitScore(screenWidth * 0.5f, screenHeight * 0.15f)
             onScore?.invoke()
         }
     }
@@ -67,18 +67,12 @@ class GameEngine(private val context: Context, val screenWidth: Int, val screenH
     fun update(deltaSeconds: Float) {
         shake.update(deltaSeconds)
         particles.update(deltaSeconds)
-
         if (state != GameState.PLAYING) return
 
         background.update(pipeManager.currentSpeed, deltaSeconds)
-
-        // Emit trail particles on flap
-        if (bird.velocityY < -400f) {
-            particles.emitFlap(bird.x - 20f, bird.y, bird.skin.trailColor)
-        }
+        if (bird.velocityY < -400f) particles.emitFlap(bird.x - 20f, bird.y, bird.skin.trailColor)
 
         val collision = physics.update(bird, pipeManager, background, deltaSeconds)
-
         if (collision != PhysicsEngine.CollisionResult.NONE) {
             bird.isAlive = false
             state = GameState.DEAD
@@ -86,6 +80,7 @@ class GameEngine(private val context: Context, val screenWidth: Int, val screenH
             shake.shake(22f, 0.35f)
             particles.emitDeath(bird.x, bird.y)
             vibrate(VibrationPattern.DEATH)
+            pushScoreToFirebase(pipeManager.score)
             onGameOver?.invoke(pipeManager.score)
         }
     }
@@ -105,6 +100,12 @@ class GameEngine(private val context: Context, val screenWidth: Int, val screenH
         bird.draw(canvas)
         particles.draw(canvas)
         canvas.restore()
+    }
+
+    private fun pushScoreToFirebase(score: Int) {
+        val uid = auth.uid ?: return
+        playerRepo.updateBestScore(uid, score)
+        playerRepo.incrementGames(uid)
     }
 
     private enum class VibrationPattern { FLAP, DEATH }

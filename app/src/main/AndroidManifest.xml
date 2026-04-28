@@ -11,7 +11,7 @@
         android:theme="@style/Theme.FlappyRush">
 
         <activity
-            android:name=".game.screens.MenuActivity"
+            android:name=".game.screens.auth.LoginActivity"
             android:exported="true"
             android:screenOrientation="portrait">
             <intent-filter>
@@ -21,12 +21,20 @@
         </activity>
 
         <activity
+            android:name=".game.screens.MenuActivity"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".game.screens.GameActivity"
             android:screenOrientation="portrait"
             android:configChanges="keyboardHidden|orientation|screenSize" />
 
         <activity
             android:name=".game.screens.GameOverActivity"
+            android:screenOrientation="portrait" />
+
+        <activity
+            android:name=".game.screens.profile.ProfileActivity"
             android:screenOrientation="portrait" />
 
     </application>
